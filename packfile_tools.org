@@ -1,0 +1,115 @@
+* linux distribute tools
+1. tar命令
+
+tar是标准的UNIX/Linux归档应用软件工具。在早期阶段，它曾经是一款磁带归档软件，后来慢慢发展成了通用归档软件包，能够处理各种类型的归档文件。tar可接受许多带选项的归档过滤器。
+
+tar选项
+
+-A：将tar文件添加到现有归档的末尾。
+-c：创建一个新的归档文件。
+-d：使用指定的文件系统比较归档。
+-j：用bzip压缩归档。
+-r：将文件添加到现有归档的末尾。
+-t：列出现有归档的内容。
+-u：更新归档。
+-x：从现有归档解压文件。
+-z：用gzip压缩归档。
+–delete：从现有归档删除文件。
+tar实例
+
+创建一个tar归档文件。
+
+# tar -zcvf name_of_tar.tar.gz /path/to/folder 
+对tar归档文件进行解压缩。
+
+# tar -zxvf Name_of_tar_file.tar.gz 
+想了解更详细的例子，请参阅《Linux下的18个Tar命令实例》一文：http://www.tecmint.com/18-tar-command-examples-in-linux/。
+
+2. shar命令
+
+shar代表外壳归档，这是一个外壳脚本，执行该脚本就可以创建文档。shar是自解压归档文件，这是一款老式实用工具，需要Unix Bourne外壳来解压文件。shar的优势在于采用明文格式，不过它可能很危险，因为它输出的是可执行文件。
+
+shar选项
+
+-o：将输出保存到选项中指定的归档文档。
+-l：限制选项中指定的输出文件大小，但不分割输入文件。
+-L：限制在选项中指定的输出文件大小，但分割输入文件。
+-n：归档名称添加到shar文件的头部中。
+-a：允许自动生成文件头部。
+注意：如果使用了“-l”或“-L”选项，就要用“-o”选项；如果使用了“-a”选项，就要用“-n”选项。
+
+shar实例
+
+创建一个shar归档文件。
+
+# shar file_name.extension > filename.shar  
+解压shar归档文件。
+
+# unshar file_name.shar 
+3. ar命令
+
+ar是创建和处理归档的实用工具，主要用于二进制对象文件库。ar代表归档工具，可用于归档任何用途的各种归档，但是基本上已被“tar”取而代之；现如今，它只用于创建和更新静态库文件。
+
+ar选项
+
+-d：从归档中删除模块。
+-m：移动归档中的成员。
+-p：显示归档的指定成员的内容。
+-q：快速添加。
+-r：将文件成员插入到归档。
+-s：为归档添加索引。
+-a：将新文件添加到归档的现有成员。
+ar实例
+
+使用“ar”工具创建一个归档，静态库为“libmath.a”，两个对象文件为“substraction”和“division”，具体如下。
+
+# ar cr libmath.a substraction.o division.o 
+解压“ar”归档文件。
+
+# ar x libmath.a 
+4. cpio
+
+cpio代表Copy in and out（拷贝输入和输出）。cpio是一款面向Linux的通用文件归档工具。它被红帽软件包管理器（RPM）积极使用，用于Linux内核的initramfs（初始RAM文件系统）中，还是苹果公司的安装工具（pax）中的一个重要归档工具。
+
+cpio选项
+
+-0：读取由空字符终止而不是由换行符终止的文件名列表。
+-a：复位访问时间。
+-A：添加到现有归档。
+-b：交换。
+-d：创建目录。
+cpio实例
+
+创建一个“cpio”归档文件。
+
+# cd tecmint  
+# ls  
+file1.o file2.o file3.o  
+# ls | cpio -ov > /path/to/output_folder/obj.cpio 
+解压cpio归档文件。
+
+# cpio -idv < /path/to folder/obj.cpio 
+5. gzip
+
+gzip是一种标准的、广泛应用的文件压缩和解压缩实用工具。gzip允许文件并置。用gzip压缩文件，可以得到格式为“*.tar.gz”或“*.tgz”的tarball打包文件。
+
+gzip选项
+
+–stdout：将输出写到标准输出设备上。
+–to-stdout：将输出写到标准输出设备上。
+–decompress：解压缩文件。
+–uncompress：解压缩文件。
+-d：解压缩文件。
+-f：强行压缩/解压缩。
+gzip实例
+
+创建一个“gzip”归档文件。
+
+# tar -cvzf name_of_archive.tar.gz /path/to/folder 
+解压缩“gzip”归档文件。
+
+# gunzip file_name.tar.gz 
+执行上面这个命令后必须紧跟着执行下面这个命令。
+
+# tar -xvf file_name.tar 
+注意：由于gzip的架构和功能，很难恢复受损坏的用gzip处理的tar归档文件。所以建议在不同的地方对用gzip处理的重要文件做几个备份。
