@@ -1,21 +1,20 @@
 * All the major ideas of Unix programming
-** 1.file I/O
-** 2.file systems
-** 3.device I/O
-** 4.the erminal driver
-** 5.timers
-** 6.signals
-** 7.processes
-** 8.pipes
-** 9.stream and datagram sockets
-** 10.network programming
-** 11.POSIX threads
-** 12.semaphores
+*** 1.file I/O
+*** 2.file systems
+*** 3.device I/O
+*** 4.the erminal driver
+*** 5.timers
+*** 6.signals
+*** 7.processes
+*** 8.pipes
+*** 9.stream and datagram sockets
+*** 10.network programming
+*** 11.POSIX threads
+*** 12.semaphores
 
-[[http://wps.prenhall.com/esm_molay_UNIXProg_1/7/2040/522376.cw/top/index.html][website]]
-
-*In the website you will find for each chapter*
-** 1.Chapter Summary
-** 2.Source Code
-** 3.Self-Study Tests
-** 4.Related Code and Links
+** [[http://wps.prenhall.com/esm_molay_UNIXProg_1/7/2040/522376.cw/top/index.html][website]]
+** In the website you will find for each chapter*
+*** 1.Chapter Summary
+*** 2.Source Code
+*** 3.Self-Study Tests
+*** 4.Related Code and Links
