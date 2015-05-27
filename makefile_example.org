@@ -1,0 +1,4 @@
+* IBM developerWorkes 编写易于扩展的Makefile
+[[http://www.ibm.com/developerworks/cn/linux/l-cn-makefile-ext/]]
+*上文用到的实力项目代码*
+<MakefileProjectv2.zip>
