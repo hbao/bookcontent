@@ -12,7 +12,7 @@
  11.POSIX threads
  12.semaphores
 
-[[http://wps.prenhall.com/esm_molay_UNIXProg_1/7/2040/522376.cw/top/index.html][website]]
+[[http://wps.prenhall.com/esm_molay_UNIXProg_1/7/2040/522376.cw/index.html]]
 *In the website you will find for each chapter*
  1.Chapter Summary
  2.Source Code
