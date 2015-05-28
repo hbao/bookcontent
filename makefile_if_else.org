@@ -1,0 +1,79 @@
+* Makefile中使用shell中的if-else-fi
+示例1：
+all:
+  @CC=arm-linux-gcc
+  echo $(CC)
+示例2：
+all:
+  @CC=arm-linux-gcc;echo $(CC)
+或者
+all:
+  @CC=arm-linux-gcc; \
+  echo $(CC)
+make把每一行Shell脚本当做一个独立的单元，他们在单独的进程中运行,示例1中第一个进程把CC设置为arm-linux-gcc,
+第二个进程是不知道的,所以打印结果自然不是arm-linux-gcc,正确写法如示例2所示
+
+make在调用Shell之前先进行预处理,即展开所有Makefile的变量和函数,这些变量和函数都以$开头
+make预处理时,所有以$开头的都不会放过,要想引用Shell自己的变量,应该以$$开头,另外需要注意,Shell自己的变量时不需要括号的
+
+示例3：
+SUBDIR = src example
+all:
+  @for subdir in $(SUBDIR); \
+  do \
+    echo "buiding"$$subdir; \
+  done
+  
+  
+  
+  
+样例:
+#ARCH  
+ARCH="`uname -s`"  
+  
+LINUX="Linux"  
+HP-UX="HP-UX"  
+  
+#Main build target  
+all:build  
+  
+build:  
+    @if [ $(ARCH) = $(LINUX) ]; \  
+    then \  
+        echo $(ARCH); \  
+    elif [ $(ARCH) = $(HP-UX) ]; \  
+    then \  
+        echo $(ARCH); \  
+    else \  
+        echo "ARCH unknow"; \  
+    fi  
+    
+    
+Makefile $@ $^ $<
+$@ 表示目标文件
+$^ 表示所有的依赖文件
+$< 表示第一个依赖文件
+$? 表示比目标还要新的依赖文件列表
+    
+    
+$(objects): %.o: %.c
+$(CC) -c $(CFLAGS) $< -o $@
+例子中,规则描述了所有的.o文件的依赖文件为对应的.c文件,对于目标“foo.o”
+,取其茎“foo”替代对应的依赖模式“%.c”中的模式字符“%”之后可得到目标的依赖文
+件“foo.c”。这就是目标“foo.o”的依赖关系“foo.o: foo.c”,规则的命令行描述了如
+何完成由“foo.c”编译生成目标“foo.o”。命令行中“$<”和“$@”是自动化变量,“$<”
+表示规则中的第一个依赖文件,“$@”表示规则中的目标文件。上边的这个规则描述了以下两个具体的规则:
+foo.o : foo.c
+$(CC) -c $(CFLAGS) foo.c -o foo.o
+bar.o : bar.c
+$(CC) -c $(CFLAGS) bar.c -o bar.o
+
+
+需要明确的一点是:在模式规则的依赖列表中使用不包
+含模式字符“%”也是合法的。代表这个文件是所有目标的依赖文件。
+
+
+
+
+    
+  
