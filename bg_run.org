@@ -1,0 +1,44 @@
+* Linux技巧:让进程在后台可靠运行的几种方法
+
+*原因:*
+当用户注销(logout)或者网络断开时,终端会收到HUP(hangup)信号从而关闭其所有子进程
+*解决:*
+让进程忽略HUP信号;让进程运行在新的会话里从而成为不属于此终端的子进程
+
+nohup/setsid/&
+
+1. nohup的用途是让提交的命令忽略hangup信号,使用格式:
+$nohup command [arg]...
+可见nohup的使用很方便,只需在要处理的命令前加上nohup即可,标准输出和标准错误缺省会重定向到nohup.out文件中.
+一般可以再结尾加上"&"来将命令同时放入后台运行,也可以">filename 2>&1"来更改缺省的重定向文件名
+
+[root@pvcent107 ~]# nohup ping www.ibm.com &
+[1] 3059
+nohup: appending output to `nohup.out'
+[root@pvcent107 ~]# ps -ef |grep 3059
+root      3059   984  0 21:06 pts/3    00:00:00 ping www.ibm.com
+root      3067   984  0 21:06 pts/3    00:00:00 grep 3059
+[root@pvcent107 ~]#
+
+2. setsid
+如果我们的进程不属于接受HUP信号的终端的子进程,那么自然也可以不会受到HUP信号的影响了,setsid能够做到这一点
+使用格式:
+
+setsid program [ arg ... ]
+root@pvcent107 ~]# setsid ping www.ibm.com
+[root@pvcent107 ~]# ps -ef |grep www.ibm.com
+root     31094     1  0 07:28 ?        00:00:00 ping www.ibm.com
+root     31102 29217  0 07:29 pts/4    00:00:00 grep www.ibm.com
+[root@pvcent107 ~]#
+该进程PID为31094, 而它的PPID为1(即为init进程ID), 并不是当前终端的进程ID
+
+3. &
+我们知道将一个或多个命名包含在"()"中能让这些命令再子shell中运行
+当我们将"&"也放入"()"内之后,我们会发现所提交的作业并不在左列列表中,也就是说无法通过jobs来查看
+[root@pvcent107 ~]# (ping www.ibm.com &)
+[root@pvcent107 ~]# ps -ef |grep www.ibm.com
+root     16270     1  0 14:13 pts/4    00:00:00 ping www.ibm.com
+root     16278 15362  0 14:13 pts/4    00:00:00 grep www.ibm.com
+[root@pvcent107 ~]#
+
+从上例中可以看出, 新提交的进程的PPID未1(init进程的PID), 并不是当前终端的进程ID, 从而也就不会受到当前终端的HUP信号的影响
