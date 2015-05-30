@@ -47,7 +47,6 @@ $nohup /usr/local/bin/ss-server -s 156.132.67.213 -p 8981 -k admin888 -m aes-256
 *email:* prexfans@gmail.com
 *password:* wanglieming100
 
-
 * shadowsocks的json文件规则
 shadowsocks.json
 {
@@ -81,3 +80,29 @@ ss-server -c /etc/shadowsocks/config.json
 
 以代理模式启动chrome命令如下:
 google-chrome --proxy-server=socks5://127.0.0.1:1080
+
+* 001vpn帐号
+*qq_wanglieming:*
+Gateway:kk001.cf
+username:24388
+password:6542
+
+*yadong:*
+Gateway:001vpn.ga
+username:24367
+password:4904
+
+*guoguo:*
+Gateway:vp002.info
+username:24365
+password:6301
+
+*001vpn:*
+Gateway:001vpn.cf
+username:24281
+password:9616
+
+*dzl:*
+Gateway:001vpn.gq
+username:24283
+password:6784
