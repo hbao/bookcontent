@@ -106,3 +106,8 @@ password:9616
 Gateway:001vpn.gq
 username:24283
 password:6784
+
+*wf:*
+Gateway:vp002.info
+username:24539
+password:2032
