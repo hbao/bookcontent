@@ -1,6 +1,9 @@
 * linux下的串口编程
 [[http://www.linux.org.tw/CLDP/OLD/Serial-Programming-HOWTO-3.html]]
 
+*Serial Programming Guide for POSIX Compliant Operating Systems*
+[[https://www.cmrr.umn.edu/~strupp/serial.html]]
+
 
 Next Previous Contents
 3. 程式範例
