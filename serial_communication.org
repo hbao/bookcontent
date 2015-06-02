@@ -4,6 +4,9 @@
 *Serial Programming Guide for POSIX Compliant Operating Systems*
 [[https://www.cmrr.umn.edu/~strupp/serial.html]]
 
+*嵌入式Linux串口应用编程之串口配*
+[[http://bbs.tianya.cn/post-52177-38-1.shtml]]
+
 
 Next Previous Contents
 3. 程式範例
