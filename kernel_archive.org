@@ -1,2 +1,5 @@
 * linux kernel archive
 [[https://www.kernel.org/pub/linux/kernel/v2.0/]]
+
+* GNU　C Learn
+[[http://www.nongnu.org/c-prog-book/online/]]
