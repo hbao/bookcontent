@@ -3,3 +3,6 @@
 
 * GNU　C Learn
 [[http://www.nongnu.org/c-prog-book/online/]]
+
+* Inline Functions In C
+[[http://www.greenend.org.uk/rjk/tech/inline.html]]
