@@ -1,0 +1,47 @@
+* TCP/IP协议族(网际协议族)
+
+                               应用协议
+用户进程: Web客户   <------------------------------->   Web服务器    应用层
+            ｜                                              ｜
+            ｜                                              ｜
+            ｜                 TCP协议                      ｜
+内核中的    TCP     <------------------------------->       TCP      传输层
+    .       ｜                                              ｜
+    .       ｜                                              ｜
+    .       ｜                 IP协议                       ｜
+  协议栈    IP      <------------------------------->       IP       网络层
+            ｜                                              ｜
+            ｜                                              ｜
+            ｜                                              ｜
+         以太网驱               以太网协议               以太网驱
+          动程序     <------------------------------->     动程序     数据链路层
+-----------------------------------------------------------------------------------
+                              以太网
+
+
+*structure:*
+struct sockaddr {
+       sa_family_t    sa_family;
+       char           sa_data[14];
+};
+
+
+typedef uint16_t in_port_t;
+typedef uint32_t in_addr_t;
+
+struct in_addr {
+       in_addr_t s_addr;
+};
+
+struct sockaddr_in {
+       __SOCKADDR_COMMON (sin_);
+       in_port_t sin_port;
+       struct in_addr sin_addr;
+       unsigned char sin_zero[sizof (struct sockaddr) -
+                              __SOCKADDR_COMMON_SIZE -
+                              sizeof (in_port_t) -
+                              sizeof (struct in_addr)];
+};
+
+
+*TCP是一种无记录边界的字节流协议*
