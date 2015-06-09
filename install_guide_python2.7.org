@@ -1,0 +1,41 @@
+* goagent安装python2.7.8
+
+1. 下载python2.7.8
+https://www.python.org/download/releases/2.7.8/
+#mkdir /opt/python2.7.8
+$tar -zxvf Python-2.7.8.tgz
+$cd Python-2.7.8
+$./configure --prefix=/opt/python2.7.8
+$make
+#make install
+
+2. 下载greenlet-0.4.2.zip
+$unzip greenlet-0.4.2.zip
+#/opt/python2.7.8/bin/python setup.py install
+
+3. 下载gevent-1.0.tar.gz
+$tar -zxvf gevent-1.0.tar.gz
+#/opt/python2.7.8/bin/python setup.py install
+
+4. 下载setuptools-5.4.2.tar.gz
+$tar -zxvf setuptools-5.4.2.tar.gz
+#/opt/python2.7.8/bin/python setup.py install
+
+5. dnslib
+$wget --no-check-certificate https://pypi.python.org/packages/source/d/dnslib/dnslib-0.8.3.tar.gz
+$tar -zxvf dnslib-0.8.3.tar.gz
+#/opt/python2.7.8/bin/python setup.py install
+
+6. pyOpenSSL-0.14.tar.gz
+ffi.h: No such file Or directory
+#yum install libffi-devel
+$tar -zxvf pyOpenSSL-0.14.tar.gz
+#/opt/python2.7.8/bin/python setup.py install
+
+7.pycrypto-2.6.1
+$wget --no-check-certificate https://ftp.dlitz.net/pub/dlitz/crypto/pycrypto/pycrypto-2.6.1.tar.gz ;tar xzvf pycrypto-2.6.1.tar.gz
+$cd pycrypto-2.6.1
+$./configure
+#/opt/python2.7.8/bin/python setup.py install
+
+8.下载goagent,修改proxy.ini

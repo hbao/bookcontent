@@ -1,0 +1,7 @@
+* Linux终端下的bt工具
+
+1. rtorrent使用简单并使用范围广,下载时只需要向它提供简单的种子文件地址而不需要下载整个种子文件
+$rtorrent <torrent文件地址>
+2. transmission
+$transmissioncli *.rorrent
+3. ctorrent

@@ -1,0 +1,38 @@
+* CentOS下命令行截屏
+*不同的截屏程序:*
+1. KDE(KSnapshot)
+2. GNOME(gonme-screenshot)
+3. Xfce(Screenshooter)
+4. 通用截屏程序(Shutter)
+5. scrot命令行截屏工具
+
+scrot支持延时截屏,截屏调整品质/大小,命令行传递等功能
+
+*CentOS安装Scrot:*
+CentOS启用Repoforge第三方源
+#yum install giblib-devel
+$wget http://linuxbrit.co.uk/downloads/scrot-0.8.tar.gz
+$tar -zxvf scrot-0.8.tar.gz
+$cd scrot-0.8
+$./configure
+$make
+#make install
+
+*截整个桌面:*
+$scrot
+保存一张整个桌面的截屏,以(日期标记).png的文件形式保存在当前目录下
+
+也可以指定保存目标文件夹和截图文件名
+$scrot -/Pictures/my_desktop.png
+
+*截取特定窗口或举行区域:*
+$scrot -s
+在桌面选择一个特定的窗口或定义一个举行区域来截图,运行该命令后,继续使用鼠标单击任意窗口或画出一个矩形,触发对选定窗口/区域的屏幕截取
+$scrot -s -d 5
+延迟截屏 "-d N"参数可以将截屏进程延迟N秒
+$scrot -q 50
+调整截屏质量,可以在1到100范围内调整截取的图像质量
+$scrot -t 10
+调整截屏尺寸,可以在1到100范围内调整截取的图像尺寸
+$scrot -e 'mv $f -/screenshots'
+scrot允许你发送保存的截屏图像给任意一个命令作为它们的输入
