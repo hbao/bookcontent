@@ -1,0 +1,12 @@
+* Hurlex
+[[http://wiki.0xffffff.org]]
+[[http://hurlex.0xffffff.org/]]
+
+github:hbao/hurlex-doc
+
+geekos
+
+Roll your own toy UNIX-clone OS:
+[[http://www.jamesmolloy.co.uk/tutorial_html/]]
+于渊的《Orange’s 一个操作系统的实现》
+川合秀实先生的《30天自制操作系统》
