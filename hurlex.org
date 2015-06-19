@@ -10,3 +10,14 @@ Roll your own toy UNIX-clone OS:
 [[http://www.jamesmolloy.co.uk/tutorial_html/]]
 于渊的《Orange’s 一个操作系统的实现》
 川合秀实先生的《30天自制操作系统》
+
+*dd命令制作img镜像文件*
+1. 制作软盘镜像文件diska.img
+命令： dd if=/dev/zero of=diska.img bs=512 count=2880
+2. 复制boot.bin到boot.img中
+命令： dd if=boot.bin of=boot.img bs=512 count=1
+3. 复制diska.img中从第512字节往后的内容添加到boot.img中（这是dd最出彩的部分）
+命令： dd if=diska.img of=boot.img skip=1 seek=1 bs=512 count=2879
+
+或
+dd if=boot.bin of=boot.img bs=512 count=1 conv=notrunc
