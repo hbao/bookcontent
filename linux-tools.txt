@@ -1,0 +1,13 @@
+l.Linux下文件传输工具lrzsz 
+
+Unix下古董级工具(lrzsz),可以通过Xmodem，Ymodem，Zmodem协议传送文件
+
+lrz：用于接收文件
+lsz：用于发送文件
+在linux下输入lsz * 
+windows下：CRT终端立刻弹出一个界面,显示一个文件在传送中，包括进度,文件名，使Zmodem协议
+linux下使用minicom,按ctrl + A，再按S进入协议选择界面,有Zmodem Ymodem Xmode kermit,选择Ymodem
+
+uboot下下载文件到板子(通过串口)： loady 0x50008000 115200   //loady [off][baud] offset  格局自己情况选择
+
+lrzsz-0.12.20.tar.gz下载地址:http://www.linuxidc.com/Linux/2010-08/27739.htm
