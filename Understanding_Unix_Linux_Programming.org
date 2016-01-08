@@ -18,3 +18,7 @@
  2.Source Code
  3.Self-Study Tests
  4.Related Code and Links
+ 
+ 
+ 
+ [[http://www.informit.com/store/programming-with-posix-threads-9780201633924][posix线程编程实例代码]]
