@@ -1,0 +1,233 @@
+* pthread_cond_timedwait ()
+1.    POSIX提供了多种时钟类型,其中包括以下两种:
+CLOCK_REALTIME： Systemwide realtime clock. 系统范围内的实时时钟,是个软件时钟,可以通过命令等方式修改该系统时间.
+CLOCK_MONOTONIC：Represents monotonic time. Cannot be set. 表示单调时间，为系统起机时到现在的时间,不能被设置跟修改.
+
+pthread_cond_timedwait()在没有设置条件变量属性的时候,默认用的是CLOCK_REALTIME软件时间,因此在极端情况下会出现实际等待的时间与设置的超时时间不同.
+下面介绍下如何正确使用pthread_cond_timedwait()接口
+
+2.    正确使用pthread_cond_timedwait()接口方式即将测量时间参照改为CLOCK_MONOTONIC,这个需要在初始化时设置条件变量的属性,之后再设置超时时间.例子如下:
+    ret = pthread_condattr_init(&(pthread_info.condattr));
+    if (ret != 0) {
+        exit(1);
+    }
+ret = pthread_condattr_setclock(&(pthread_info.condattr), CLOCK_MONOTONIC);
+ret = pthread_cond_init(&(pthread_info.cleanup_queue_wait), &(pthread_info.condattr));
+…
+struct timespec tv;
+clock_gettime(CLOCK_MONOTONIC, &tv);
+PTHREAD_TASK_DBG(LOGS_DEBUG, "now time:%d\n", tv.tv_sec);
+tv.tv_sec += 30;-这里设置30秒后没收到事件超时返回
+ret = pthread_cond_timedwait(&(pthread_info.cleanup_queue_wait), &(pthread_info.cleanup_queue_lock), &tv);
+…
+从上可以看出,使用该方式无论对系统时间设置为任何值时,系统运行时间都不会被修订，同时该线程也不会被触发返回,依旧是原先的30秒超时.
+
+3.    其实使用CLOCK_REALTIME作为测量时间参照也是可行的,只是在极端的情况下(如在获取当前系统时间后系统时间马上被修订)时,这个超时时间就不正确了,不过这是小概率事件.
+例子如下:
+struct timespec tv;
+tv.tv_sec = time(NULL);-极端情况下在获取当前系统时间后系统时间马上被修订
+PTHREAD_TASK_DBG(LOGS_DEBUG, "now time:%d\n", tv.tv_sec);
+tv.tv_sec += 30;-这里设置30秒后没收到事件超时返回
+ret = pthread_cond_timedwait(&(pthread_info.cleanup_queue_wait), &(pthread_info.cleanup_queue_lock), &tv);
+从上面可以看出,使用该方式在线程进入超时等待后,无论将系统时间改成以前后以后的时间,time(NULL)会返回当前设置后的时间,但线程都不会被触发返回.
+
+4.    参考资料:
+http://man.chinaunix.net/unix/susv3/functions/pthread_condattr_setclock.html
+http://man.chinaunix.net/unix/susv3/functions/pthread_cond_timedwait.html
+
+* printf格式化中的 #
+%#：对c,s,d,u类无影响；对o类，在输出时加前缀o；对x类，在输出时加前缀0x；
+对e,g,f 类当结果有小数时才给出小数点
+
+* socket编程问题 Address already in use
+ 文章内容来源于stackoverflow上的回答，写的很详细http://stackoverflow.com/questions/14388706/socket-options-so-reuseaddr-and-so-reuseport-how-do-they-differ-do-they-mean-t
+      虽然不同的系统上socket的实现方式有一些差异，但都来源于对BSD socket的实现，因此在讨论其它系统之前了解BSD socket的实现是非常有益的。首先我们需要了解一些基本知识，一个TCP/UDP连接是被一个五元组确定的：
+       {<protocol>, <src addr>, <src port>, <dest addr>, <dest port>}
+     因此，任何两个连接都不可能拥有相同的五元组，否则系统将无法区别这两个连接。
+     当使用socket()函数创建套接字的时候，我们就指定了该套接字使用的protocol(协议)，bind()函数设置了源地址和源端口号，而目的地址和目的端口号则由connect()函数设定。尽管允许对UDP进行"连接"（在某些情况下这对应用程序的设计非常有帮助）但由于UDP是一个无连接协议，UDP套接字仍然可以不经连接就使用。"未连接"的UDP套接字在数据被第一次发送之前并不会绑定，只有在发送的时候被系统自动绑定，因此未绑定的UDP套接字也就无法收到（回复）数据。未绑定的TCP也一样，它将在连接的时候自动绑定。
+     如果你明确绑定一个socket，把它绑定到端口0是可行的，它意味着"any port"("任意端口")。由于一个套接字无法真正的被绑定到系统上的所有端口，那么在这种情况下系统将不得不选择一个具体的端口号（指的是"any port"）。源地址使用类似的通配符，也就是"any address" （IPv4中的0.0.0.0和IPv6中的::）。和端口不同的是，一个套接字可以被绑定到任意地址(any address)，这里指的是本地网络接口的所有地址。由于socket无法在连接的时候同时绑定到所有源IP地址，因此当接下来有一个连接过来的时候，系统将不得不挑选一个源IP地址。考虑到目的地址和路由表中的路由信息，系统将会选择一个合适的源地址，并将任意地址替换为一个选定的地址作为源地址。
+      默认情况下，任意两个socket都无法绑定到相同的源IP地址和源端口(即源地址和源端口号均相同)。只要源端口号不相同，那么源地址实际上没什么关系。将socketA绑定到地址A和端口X （A:X)，socketB绑定到地址B和端口Y (B:Y)，只要X != Y，那么这种绑定都是可行的。然而当X==Y的时候只要A != B，这种绑定方式也仍然可行，比如：一个FTP server的socketA绑定为192.168.0.1:21而属于另一个FTP server的socketB绑定为 10.0.0.1:21，这两个绑定都将成功。记住：一个socket可能绑定到本地"any address"。例如一个socket绑定为 0.0.0.0:21，那么它同时绑定了所有的本地地址，在这种情况下，不论其它的socket选择什么特定的IP地址，它们都无法绑定到21端口，因为0.0.0.0和所有的本地地址都会冲突。
+     上面说的对所有主流操作系统都是一样的。当涉及到地址重用的时候，OS之间的差异就显现出来了，正如之前所说的那样，其它的实现方案都来源于BSD的实现，因此我们首先从BSD说起。
+
+     BSD
+     SO_REUSEADDR
+     如果在绑定一个socket之前设置了SO_REUSEADDR，除非两个socket绑定的源地址和端口号都一样，那么这两个绑定都是可行的。也许你会疑惑这跟之前的有什么不一样？关键是SO_REUSEADDR改变了在处理源地址冲突时对通配地址("any ip address")的处理方式。
+     当没有设置SO_REUSEADDR的时候，socketA先绑定到0.0.0.0:21，然后socketB绑定到192.168.0.1:21的时候将会失败(EADDRINUSE错误)，因为0.0.0.0意味着"任意本地IP地址”，也就是"所有本地IP地址“，因此包括192.168.0.1在内的所有IP地址都被认为是已经使用了。但是在设置SO_REUSEADDR之后socketB的绑定将会成功，因为0.0.0.0和192.168.0.1事实上不是同一个IP地址，一个是代表所有地址的通配地址，另一个是一个具体的地址。注意上面的表述对于socketA和socketB的绑定顺序是无关的，没有设置SO_REUSEADDR，它们将失败，设置了SO_REUSEADDR，它将成功。
+     下面给出了一个表格列出了所有的可能组合：
+ 
+SO_REUSEADDR       socketA        socketB       Result
+---------------------------------------------------------------------
+  ON/OFF       192.168.0.1:21   192.168.0.1:21    Error (EADDRINUSE)
+  ON/OFF       192.168.0.1:21      10.0.0.1:21    OK
+  ON/OFF          10.0.0.1:21   192.168.0.1:21    OK
+   OFF             0.0.0.0:21   192.168.1.0:21    Error (EADDRINUSE)
+   OFF         192.168.1.0:21       0.0.0.0:21    Error (EADDRINUSE)
+   ON              0.0.0.0:21   192.168.1.0:21    OK
+   ON          192.168.1.0:21       0.0.0.0:21    OK
+  ON/OFF           0.0.0.0:21       0.0.0.0:21    Error (EADDRINUSE)
+上面的表格假定socketA已经成功绑定，然后创建socketB绑定给定地址在是否设置SO_REUSEADDR的情况下的结果。Result代表socketB的绑定行为是否会成功。如果第一列是ON/OFF，那么SO_REUSEADDR的值将是无关紧要的。
+
+      现在我们知道SO_REUSEADDR对通配地址有影响，但这不是它唯一影响到的方面。还有一个众所周知的影响同时也是大多数人在服务器程序上使用SO_REUSEADDR的首要原因。为了了解其它SO_REUSEADDR重要的使用方式，我们需要深入了解TCP协议的工作方式。
+      一个socket有一个发送缓冲区，当调用send()函数成功后，这并不意味着所有数据都真正被发送出去了，它只意味着数据都被送到了发送缓冲区中。对于UDP socket来说，如果不是立刻发送的话，数据通常也会很快的发送出去，但对于TCP socket，在数据加入到缓冲区和真正被发送出去之间的时延会相当长。这就导致当我们close一个TCP socket的时候，可能在发送缓冲区中保存着等待发送的数据(由于send()成功返回，因此你也许认为数据已经被发送了)。如果TCP的实现是立刻关闭socket，那么所有这些数据都会丢失而你的程序根本不可能知道。TCP被称为可靠协议，像这种丢失数据的方式就不那么可靠了。这也是为什么当我们close一个TCP socket的时候，如果它仍然有数据等待发送，那么该socket会进入TIME_WAIT状态。这种状态将持续到数据被全部发送或者发生超时。
+     在内核彻底关闭socket之前等待的总时间(不管是否有数据在发送缓冲区中等待发送)叫做Linger Time。Linger Time在大部分系统上都是一个全局性的配置项而且在默认情况下时间相当长(在大部分系统上是两分钟)。当然对于每个socket我们也可以使用socket选项SO_LINGER进行配置，可以将等待时间设置的更长一点儿或更短一点儿甚至禁用它。禁用Linger Time绝对是一个坏主意，虽然优雅的关闭socket是一个稍微复杂的过程并且涉及到来回的发送数据包(以及在数据包丢失后重发它们)，并且这个过程还受到Linger Time的限制。如果禁用Linger Time，socket可能丢失的不仅仅是待发送的数据，而且还会粗暴的关闭socket，在绝大部分情况下，都不应该这样使用。如何优雅的关闭TCP连接的细节不在这里进行讨论，如果你想了解更多，我建议你阅读：http://www.freesoft.org/CIE/Course/Section4/11.htm。而且如果你用SO_LINGER禁用了Linger Time,而你的程序在显式的关闭socket之前就终止的话，BSD(其它的系统也有可能)仍然会等待，而不管已经禁用了它。这种情况的一个例子就是你的程序调用了exit() (在小的服务器程序很常见)或者进程被信号杀死(也有可能是进程访问了非法内存而终止)。这样的话，不管在什么情况下，你都无法对某一个socket禁用linger了。
+      问题在于，系统是怎样看待TIME_WAIT状态的？如果SO_REUSEADDR还没有设置，一个处在TIME_WAIT的socket仍然被认为绑定在源地址和端口，任何其它的试图在同样的地址和端口上绑定一个socket行为都会失败直到原来的socket真正的关闭了，这通常需要等待Linger Time的时长。所以不要指望在一个socket关闭后立刻将源地址和端口绑定到新的socket上，在绝大部分情况下，这种行为都会失败。然而，在设置了SO_REUSEADDR之后试图这样绑定(绑定相同的地址和端口)仅仅只会被忽略，而且你可以将相同的地址绑定到不同的socket上。注意当一个socket处于TIME_WAIT状态，而你试图将它绑定到相同的地址和端口，这会导致未预料的结果，因为处于TIME_WAIT状态的socket仍在"工作"，幸运的是这种情况极少发生。
+      对于SO_REUSEADDR你需要知道的最后一点是只有在你想绑定的socket开启了地址重用(address reuse)之后上面的才会生效，不过这并不需要检查之前已经绑定或处于TIME_WAIT的socket在它们绑定的时候是否也设置这个选项。也就是说，绑定的成功与否只会检查当前bind的socket是否开启了这个标志，不会查看其它的socket。
+ SO_REUSEPORT
+      SO_REUSEPORT的含义与绝大部分人对SO_REUSEADDR的理解一样。基本上说来，SO_REUSEPORT允许你将多个socket绑定到相同的地址和端口只要它们在绑定之前都设置了SO_REUSEPORT。如果第一个绑定某个地址和端口的socket没有设置SO_REUSEPORT，那么其他的socket无论有没有设置SO_REUSEPORT都无法绑定到该地址和端口直到第一个socket释放了绑定。
+      SO_REUSEPORT并不表示SO_REUSEADDR。这意味着如果一个socket在绑定时没有设置SO_REUSEPORT，那么同预期的一样，其它的socket对相同地址和端口的绑定会失败，但是如果绑定相同地址和端口的socket正处在TIME_WAIT状态，新的绑定也会失败。当有个socket绑定后处在TIME_WAIT状态(释放时)时，为了使得其它socket绑定相同地址和端口能够成功，需要设置SO_REUSEADDR或者在这两个socket上都设置SO_REUSEPORT。当然，在socket上同时设置SO_REUSEPORT和SO_REUSEADDR也是可行的。
+    关于SO_REUSEPORT除了它在被添加到系统的时间比SO_REUSEPORT晚就没有其它需要说的了，这也是为什么在有些系统的socket实现上你找不到这个选项，因为这些系统的代码都是在这个选项被添加到BSD之前fork了BSD，这样就不能将两个socket绑定到真正相同的“地址” (address+port)。
+
+ Connect() Returning EADDRINUSE?
+      绝大部分人都知道bind()可能失败返回EADDRINUSE，然而当你开始使用地址重用(address reuse)，你可能会碰到奇怪的情况:connect()
+失败返回同样的错误EADDRINUSE。怎么会出现这种情况了? 一个远端地址(remote address)毕竟是connect添加到socket上的，怎么会已经被使用了? 将多个socket连接到相同的远端地址从来没有出现过这样的情况，这是为什么了？
+     正如我在开头说过的，一个连接是被一个五元组定义的。同样我也说了任意两个连接的五元组不能完全一样，因为这样的话内核就没办法区分这两个连接了。然而，在地址重用的情况下，你可以把同协议的两个socket绑定到完全相同的源地址和源端口，这意味着五元组中已经有三个元素相同了(协议，源地址，源端口)。如果你尝试将这些socket连接到同样的目的地址和目的端口，你就创建了两个完全相同的连接。这是不行的，至少对TCP不行(UDP实际上没有真实的连接)。如果数据到达这两个连接中的任何一个，那么系统将无法区分数据到底属于谁。因此当源地址和源端口相同时，目的地址或者目的端口必须不同，否则内核无法进行区分，这种情况下，connect()将在第二个socket尝试连接时返回EADDRINUSE。
+
+Multicast Address(多播地址)
+      大部分人都会忽略多播地址的存在，但它们的确存在。单播地址(unicast address)用于单对单通信，多播地址用于单对多通信。大部分人在他们学习了IPv6后才注意到多播地址的存在，但在IPv4中多播地址就有了，尽管它们在公共互联网上用的并不多。
+      对多播地址来说，SO_REUSEADDR的含义发生了改变，因为它允许多个socket绑定到完全一样的多播地址和端口，也就是说，对多播地址SO_REUSEADDR的行为与SO_REUSEPORT对单播地址完全一样。事实上，对于多播地址，对SO_REUSEADDR和SO_REUSEPORT的处理完全一样，对所有多播地址，SO_REUSEADDR也就意味着SO_REUSEPORT。
+FreeBSD/OpenBSD/NetBSD
+     它们都是很晚的时候衍生自原生BSD的系统，它们与原生BSD的选项和行为都一样。
+MacOS X
+     MacOS X的内核就是一个BSD类型的UNIX，基于很新的BSD代码，甚至Mac OS 10.3的发布与FreeBSD 5都是同步的，因此MacOS与BSD一样提供相同的选项，处理行为也一样。
+IOS
+     IOS只是在内核上稍微修改了MacOS，因此选项和处理行为也和MacOS一样。
+
+Linux
+     在linux 3.9之前，只存在选项SO_REUSEADDR。除了两个重要的差别，大体上与BSD一样。第一个差别：当一个监听(listening)TCP socket绑定到通配地址和一个特定的端口，无论其它的socket或者是所有的socket(包括监听socket)都设置了SO_REUSEADDR，其它的TCP socket都无法绑定到相同的端口(BSD中可以)，就更不用说使用一个特定地址了。这个限制并不用在非监听TCP socket上，当一个监听socket绑定到一个特定的地址和端口组合，然后另一个socket绑定到通配地址和相同的端口，这样是可行的。第二个差别: 当把SO_REUSEADDR用在UDP socket上时，它的行为与BSD上SO_REUSEPORT完全相同，因此两个UDP socket只要都设置了SO_REUSEADDR，那么它们可以绑定到相同的地址和端口。
+    Linux 3.9加入了SO_REUSEPORT。这个选项允许多个socket(TCP or UDP)不管是监听socket还是非监听socket只要都在绑定之前都设置了它，那么就可以绑定到完全相同的地址和端口。为了阻止"port 劫持"(Port hijacking)有一个特别的限制：所有希望共享源地址和端口的socket都必须拥有相同的有效用户id(effective user ID)。因此一个用户就不能从另一个用户那里"偷取"端口。另外，内核在处理SO_REUSEPORT socket的时候使用了其它系统上没有用到的"特别魔法"：对于UDP socket，内核尝试平均的转发数据报，对于TCP监听socket，内核尝试将新的客户连接请求(由accept返回)平均的交给共享同一地址和端口的socket(监听socket)。这意味着在其他系统上socket收到一个数据报或连接请求或多或少是随机的，但是linux尝试优化分配。例如：一个简单的服务器程序的多个实例可以使用SO_REUSEPORT socket实现一个简单的负载均衡，因为内核已经把复制的分配都做了。
+Android
+     尽管整个Android系统与大多数linux发行版都不一样，但是它的内核是个稍加修改的linux内核，因此它的SO_REUSEADDR和SO_REUSEPORT与linux一样。
+Windows
+    windows上只有SO_REUSEADDR选项，没有SO_REUSEPORT。在windows上设置了SO_REUSEADDR的socket其行为与BSD上设定了SO_REUSEPORT和SO_REUSEADDRd的行为大致一样，只有一个差别：一个设置了SO_REUSEADDR的socket总是可以绑定到已经被绑定过的源地址和源端口，不管之前在这个地址和端口上绑定的socket是否设置了SO_REUSEADDR没有。这种行为在某种程度上有些危险因为它允许一个应用程序从别的应用程序上"偷取"已连接的端口。不用说，这对安全性有极大的影响，Microsoft意识到了这个问题，就加入了另一个socket选项: SO_EXECLUSIVEADDRUSE。设置了SO_EXECLUSIVEADDRUSE的socket确保一旦绑定成功，那么被绑定的源端口和地址就只属于这一个socket，其它的socket不能绑定，甚至他们使用了SO_REUSEADDR也没用。
+Solaris
+     Solaris是SunOS的后羿，SunOS起源于BSD，SunOS 5和之后的版本则基于SVR4，然而SVR4是BSD，System V和Xenix的集合体，所以从某种程度上说，Solaris也是BSD的分支，而且是相当早的一个分支。这就导致了Solaris只有SO_REUSEADDR而没有SO_REUSEPORT。Solaris上SO_REUSEADDR的行为与BSD的非常相似。从我知道的来看，在Solaris上没办法实现SO_REUSEPORT的行为，也就是说，想把两个socket绑定到相同的源地址和端口上是不可能的。
+     与Windows类似，Solaris也有一个选项提供互斥绑定，这个选项叫SO_EXCLBIND。如果在一个socket在绑定之前设置这个选项，那么在其他的socket上设置SO_REUSEADDR将没有任何影响。比如socketA绑定了一个通配地址，socketB设置了SO_REUSEADDR并且绑定到一个非通配地址和相同的端口，那么这个绑定将成功，除非socketA设置了SO_EXCLBIND，在这种情况下，socketB的绑定将失败不管它是否设定了SO_REUSEADDR。
+* Linux套接字编程中的5个隐患
+[[http://www.ibm.com/developerworks/cn/linux/l-sockpit/][5个隐患]]
+在 4.2 BSD UNIX® 操作系统中首次引入，Sockets API 现在是任何操作系统的标准特性。事实上，很难找到一种不支持 Sockets API 的现代语言。该 API 相当简单，但新的开发人员仍然会遇到一些常见的隐患。
+本文识别那些隐患并向您显示如何避开它们。
+隐患 1．忽略返回状态
+第一个隐患很明显，但它是开发新手最容易犯的一个错误。如果您忽略函数的返回状态，当它们失败或部分成功的时候，您也许会迷失。反过来，这可能传播错误，使定位问题的源头变得困难。
+捕获并检查每一个返回状态，而不是忽略它们。考虑清单 1 显示的例子，一个套接字 send 函数。
+清单 1. 忽略 API 函数返回状态
+int status, sock, mode;
+/* Create a new stream (TCP) socket */
+sock = socket( AF_INET, SOCK_STREAM, 0 );
+...
+status = send( sock, buffer, buflen, MSG_DONTWAIT );
+if (status == -1) {
+  /* send failed */
+  printf( "send failed: %s\n", strerror(errno) );
+} else {
+  /* send succeeded -- or did it? */
+}
+清单 1 探究一个函数片断，它完成套接字 send 操作（通过套接字发送数据）。函数的错误状态被捕获并测试，但这个例子忽略了 send 在无阻塞模式（由 MSG_DONTWAIT 标志启用）下的一个特性。
+send API 函数有三类可能的返回值：
+如果数据成功地排到传输队列，则返回 0。
+如果排队失败，则返回 -1（通过使用 errno 变量可以了解失败的原因）。
+如果不是所有的字符都能够在函数调用时排队，则最终的返回值是发送的字符数。
+由于 send 的 MSG_DONTWAIT 变量的无阻塞性质，函数调用在发送完所有的数据、一些数据或没有发送任何数据后返回。在这里忽略返回状态将导致不完全的发送和随后的数据丢失。
+
+隐患 2．对等套接字闭包
+UNIX 有趣的一面是您几乎可以把任何东西看成是一个文件。文件本身、目录、管道、设备和套接字都被当作文件。这是新颖的抽象，意味着一整套的 API 可以用在广泛的设备类型上。
+考虑 read API 函数，它从文件读取一定数量的字节。read 函数返回读取的字节数（最高为您指定的最大值）；或者 -1，表示错误；或者 0，如果已经到达文件末尾。
+如果在一个套接字上完成一个 read 操作并得到一个为 0 的返回值，这表明远程套接字端的对等层调用了 close API 方法。该指示与文件读取相同 —— 没有多余的数据可以通过描述符读取（参见 清单 2）。
+清单 2．适当处理 read API 函数的返回值
+int sock, status;
+sock = socket( AF_INET, SOCK_STREAM, 0 );
+...
+status = read( sock, buffer, buflen );
+if (status > 0) {
+  /* Data read from the socket */
+} else if (status == -1) {
+  /* Error, check errno, take action... */
+} else if (status == 0) {
+  /* Peer closed the socket, finish the close */
+  close( sock );
+  /* Further processing... */
+}
+同样，可以用 write API 函数来探测对等套接字的闭包。在这种情况下，接收 SIGPIPE 信号，或如果该信号阻塞，write 函数将返回 -1 并设置 errno 为 EPIPE。
+
+隐患 3．地址使用错误（EADDRINUSE）
+您可以使用 bind API 函数来绑定一个地址（一个接口和一个端口）到一个套接字端点。可以在服务器设置中使用这个函数，以便限制可能有连接到来的接口。也可以在客户端设置中使用这个函数，以便限制应当供出去的连接所使用的接口。bind 最常见的用法是关联端口号和服务器，并使用通配符地址（INADDR_ANY），它允许任何接口为到来的连接所使用。
+bind 普遍遭遇的问题是试图绑定一个已经在使用的端口。该陷阱是也许没有活动的套接字存在，但仍然禁止绑定端口（bind 返回 EADDRINUSE），它由 TCP 套接字状态 TIME_WAIT 引起。该状态在套接字关闭后约保留 2 到 4 分钟。在 TIME_WAIT 状态退出之后，套接字被删除，该地址才能被重新绑定而不出问题。
+等待 TIME_WAIT 结束可能是令人恼火的一件事，特别是如果您正在开发一个套接字服务器，就需要停止服务器来做一些改动，然后重启。幸运的是，有方法可以避开 TIME_WAIT 状态。可以给套接字应用 SO_REUSEADDR 套接字选项，以便端口可以马上重用。
+考虑清单 3 的例子。在绑定地址之前，我以 SO_REUSEADDR 选项调用 setsockopt。为了允许地址重用，我设置整型参数（on）为 1 （不然，可以设为 0 来禁止地址重用）。
+清单 3．使用 SO_REUSEADDR 套接字选项避免地址使用错误
+int sock, ret, on;
+struct sockaddr_in servaddr;
+/* Create a new stream (TCP) socket */
+sock = socket( AF_INET, SOCK_STREAM, 0 ):
+/* Enable address reuse */
+on = 1;
+ret = setsockopt( sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) );
+/* Allow connections to port 8080 from any available interface */
+memset( &servaddr, 0, sizeof(servaddr) );
+servaddr.sin_family = AF_INET;
+servaddr.sin_addr.s_addr = htonl( INADDR_ANY );
+servaddr.sin_port = htons( 45000 );
+/* Bind to the address (interface/port) */
+ret = bind( sock, (struct sockaddr *)&servaddr, sizeof(servaddr) );
+在应用了 SO_REUSEADDR 选项之后，bind API 函数将允许地址的立即重用。
+
+隐患 4．发送结构化数据
+套接字是发送无结构二进制字节流或 ASCII 数据流（比如 HTTP 上的 HTTP 页面，或 SMTP 上的电子邮件）的完美工具。但是如果试图在一个套接字上发送二进制数据，事情将会变得更加复杂。
+比如说，您想要发送一个整数：您可以肯定，接收者将使用同样的方式来解释该整数吗？运行在同一架构上的应用程序可以依赖它们共同的平台来对该类型的数据做出相同的解释。但是，如果一个运行在高位优先的 IBM PowerPC 上的客户端发送一个 32 位的整数到一个低位优先的 Intel x86，那将会发生什么呢？字节排列将引起不正确的解释。
+字节交换还是不呢？
+Endianness 是指内存中字节的排列顺序。高位优先（big endian） 按最高有效字节在前排列，然而 低位优先（little endian） 按照最低有效字节在前排序。
+高位优先架构（比如 PowerPC®）比低位优先架构（比如 Intel® Pentium® 系列，其网络字节顺序是高位优先）有优势。这意味着，对高位优先的机器来说，在 TCP/IP 内控制数据是自然有序的。低位优先架构要求字节交换 —— 对网络应用程序来说，这是一个轻微的性能弱点。
+通过套接字发送一个 C 结构会怎么样呢？这里，也会遇到麻烦，因为不是所有的编译器都以相同的方式排列一个结构的元素。结构也可能被压缩以便使浪费的空间最少，这进一步使结构中的元素错位。
+幸好，有解决这个问题的方案，能够保证两端数据的一致解释。过去，远程过程调用（Remote Procedure Call，RPC）套装工具提供所谓的外部数据表示（External Data Representation，XDR）。XDR 为数据定义一个标准的表示来支持异构网络应用程序通信的开发。
+现在，有两个新的协议提供相似的功能。可扩展标记语言/远程过程调用（XML/RPC）以 XML 格式安排 HTTP 上的过程调用。数据和元数据用 XML 进行编码并作为字符串传输，并通过主机架构把值和它们的物理表示分开。SOAP 跟随 XML-RPC，以更好的特性和功能扩展了它的思想。参见 参考资料 小节，获取更多关于每个协议的信息。
+
+
+隐患 5．TCP 中的帧同步假定
+TCP 不提供帧同步，这使得它对于面向字节流的协议是完美的。这是 TCP 与 UDP（User Datagram Protocol，用户数据报协议）的一个重要区别。UDP 是面向消息的协议，它保留发送者和接收者之间的消息边界。TCP 是一个面向流的协议，它假定正在通信的数据是无结构的，如图 1 所示。
+图 1．UDP 的帧同步能力和缺乏帧同步的 TCP
+帧同步能力
+图 1 的上部说明一个 UDP 客户端和服务器。左边的对等层完成两个套接字的写操作，每个 100 字节。协议栈的 UDP 层追踪写的数量，并确保当右边的接收者通过套接字获取数据时，它以同样数量的字节到达。换句话说，为读者保留了写者提供的消息边界。
+现在，看图 1 的底部．它为 TCP 层演示了相同粒度的写操作。两个独立的写操作（每个 100 字节）写入流套接字。但在本例中，流套接字的读者得到的是 200 字节。协议栈的 TCP 层聚合了两次写操作。这种聚合可以发生在 TCP/IP 协议栈的发送者或接收者中任何一方。重要的是，要注意到聚合也许不会发生 —— TCP 只保证数据的有序发送。
+对大多数开发人员来说，该陷阱会引起困惑。您想要获得 TCP 的可靠性和 UDP 的帧同步。除非改用其他的传输协议，比如流传输控制协议（STCP），否则就要求应用层开发人员来实现缓冲和分段功能。
+
+调试套接字应用程序的工具
+GNU/Linux 提供几个工具，它们可以帮助您发现套接字应用程序中的一些问题。此外，使用这些工具还有教育意义，而且能够帮助解释应用程序和 TCP/IP 协议栈的行为。在这里，您将看到对几个工具的概述。查阅下面的 参考资料 了解更多的信息。
+查看网络子系统的细节
+netstat 工具提供查看 GNU/Linux 网络子系统的能力。使用 netstat，可以查看当前活动的连接（按单个协议进行查看），查看特定状态的连接（比如处于监听状态的服务器套接字）和许多其他的信息。清单 4 显示了 netstat 提供的一些选项和它们启用的特性。
+清单 4．netstat 实用程序的用法模式
+View all TCP sockets currently active
+$ netstat --tcp
+View all UDP sockets
+$ netstat --udp
+View all TCP sockets in the listening state
+$ netstat --listening
+View the multicast group membership information
+$ netstat --groups
+Display the list of masqueraded connections
+$ netstat --masquerade
+View statistics for each protocol
+$ netstat --statistics
+尽管存在许多其他的实用程序，但 netstat 的功能很全面，它覆盖了 route、ifconfig 和其他标准 GNU/Linux 工具的功能。
+监视流量
+可以使用 GNU/Linux 的几个工具来检查网络上的低层流量。tcpdump 工具是一个比较老的工具，它从网上“嗅探”网络数据包，打印到 stdout 或记录在一个文件中。该功能允许查看应用程序产生的流量和 TCP 生成的低层流控制机制。一个叫做 tcpflow 的新工具与 tcpdump 相辅相成，它提供协议流分析和适当地重构数据流的方法，而不管数据包的顺序或重发。清单 5 显示 tcpdump 的两个用法模式。
+清单 5．tcpdump 工具的用法模式
+Display all traffic on the eth0 interface for the local host
+$ tcpdump -l -i eth0
+Show all traffic on the network coming from or going to host plato
+$ tcpdump host plato
+Show all HTTP traffic for host camus
+$ tcpdump host camus and (port http)
+View traffic coming from or going to TCP port 45000 on the local host
+$ tcpdump tcp port 45000
+tcpdump 和 tcpflow 工具有大量的选项，包括创建复杂过滤表达式的能力。查阅下面的 参考资料 获取更多关于这些工具的信息。
+tcpdump 和 tcpflow 都是基于文本的命令行工具。如果您更喜欢图形用户界面（GUI），有一个开放源码工具 Ethereal 也许适合您的需要。Ethereal 是一个专业的协议分析软件，它可以帮助调试应用层协议。它的插入式架构（plug-in architecture）可以分解协议，比如 HTTP 和您能想到的任何协议（写本文的时候共有 637 个协议）。
+
+
+套接字编程是容易而有趣的，但是您要避免引入错误或至少使它们容易被发现，这就需要考虑本文中描述的这 5 个常见的陷阱，并且采用标准的防错性程序设计实践。GNU/Linux 工具和实用程序还可以帮助发现一些程序中的小问题。记住：在查看实用程序的帮助手册时候，跟踪相关的或“请参见”工具。您也许会发现一个必要的新工具。
+
+
+* Communications Programming Concepts
+[[http://ftp.mozgan.org/IBM_AIX/IBM_AIX_v7.1_Communications_Programming_Concepts.pdf][Communications Programming Concepts]]
+
+
+* TCP/IP 应用程序的通信连接模式
+[[https://www.ibm.com/developerworks/cn/aix/library/0807_liugb_tcpip/][TCP/IP 应用程序的通信连接模式]]
