@@ -1,0 +1,139 @@
+* screen实现会话共享
+
+使用 Screen 共享会话（多台电脑可以用来共享窗口然后--开会、教学等）。
+
+GNU Screen可以看作是窗口管理器的命令行界面版本。它提供了统一的管理多个会话的界面和相应的功能。
+
+* 会话恢复 ：  只要Screen本身没有终止，在其内部运行的会话都可以恢复。这一点对于远程登录的用户特别有用——即使网络连接中断，用户也不会失去对已经打开的命令行会话的控制。只要再次登录到主机上执行 screen -r 就可以恢复会话的运行。同样在暂时离开的时候，也可以执行分离命令detach，在保证里面的程序正常运行的情况下让Screen挂起（切换到后台）。这一点和图形界面下的VNC很相似。
+
+* 多窗口    ：  在Screen环境下，所有的会话都独立的运行，并拥有各自的编号、输入、输出和窗口缓存。用户可以通过快捷键在不同的窗口下切换，并可以自由的重定向各个窗口的输入和输出。Screen实现了基本的文本操作，如复制粘贴等；还提供了类似滚动条的功能，可以查看窗口状况的历史记录。窗口还可以被分割和命名，还可以监视后台窗口的活动。
+
+* 会话共享  ：  Screen可以让一个或多个用户从不同终端多次登录一个会话，并共享会话的所有特性（比如可以看到完全相同的输出）。它同时提供了窗口访问权限的机制，可以对窗口进行密码保护。
+
+screen 关于多窗口操作可以参见：[[http://www.linuxidc.com/Linux/2013-10/91612.htm][《  Linux 技巧：使用 Screen 管理你的远程会话 》]]
+
+而本文主要想介绍下共享会话的使用，可以让我们使用更加方便，而且使用screen的共享会话可以让很多用户同时
+
+看到一个窗口，可以用来上课、开会等～～
+
+共享会话的使用其实很简单，主要使用到screen的命令有：
+
+一、 screen -S session_name  session_name可以由用户自己设定，比如说abc
+
+二、screen -list 可以查看当前电脑上有哪些会话，其他用户可以先用此命令查看然后选择登录进入某个会话
+
+三、screen -x session_name  进入共享的会话窗口
+
+主要流程我画了个流程图：
+
+使用 Screen 共享会话
+
+1、在一台电脑A上使用 screen -S test 创建会话，然后终端会进入test会话中。
+
+2、这时候别的机器使用ssh登录A ，使用screen -list可以查看当前有那些会话：
+
+www.linuxidc.com @www.linuxidc.com:~$ screen -list
+
+There is a screen on:
+
+8815.test (Friday, October 18, 2013 11:23:23 CST) (Attached)
+
+1 Socket in /var/run/screen/S-long.
+
+3、使用 screen -x test 进入会话即可，screen的共享会话可以支持所有使用ssh登录上这台电脑的用户。 所以我们就可以使用这个功能来开会或者教学！
+
+更多详情见请继续阅读下一页的精彩内容： http://www.linuxidc.com/Linux/2013-10/91613p2.htm
+
+相关阅读：
+
+Linux下Screen的常用命令 http://www.linuxidc.com/Linux/2012-07/65358.htm
+
+Zabbix通过邮件发送Screen图形报表实现 http://www.linuxidc.com/Linux/2013-06/85759.htm
+
+Linux虚拟终端命令Screen用法详解 http://www.linuxidc.com/Linux/2013-07/87415.htm
+
+Linux 技巧:使用 Screen 管理你的远程会话 http://www.linuxidc.com/Linux/2013-10/91612.htm
+
+
+
+* ps命令
+ps
+
+查看进程：
+  ps: process 查看 庞大而古老的一个指令 
+
+参数：
+
+    进程相关和进程无关
+
+ 后台进程和终端无关 如：打开电脑输出的提示信息  
+  跟终端相关的进程：用户的默认SHELL 发起 附属于领头SHELL 进程
+
+-e/A:显示所有进程 能显示有关和无关的进程
+
+ a: 跟终端无关的所有进程 a 和 x 是关于BSD的
+ x: 跟终端有关
+-u: 显示进程是由哪个用户发起
+-F: 显示额外信息 
+j: jobs work 
+h：进程间的关系 采取缩进的方式 
+-o：自己定义显示那些字段 用逗号隔开
+
+常见的查看进程组合
+e.g.
+
+ps aux                                 // 这命令比较常用
+ps axjf                                 // 这两命令比较常用
+ps -ef 
+ps ejh   
+ps -eo pid,%cpu,comm     //分段查看
+
+ps信息显示常见5段分析： ps 为双向循环列表
+1 PID：             进程号 计算机通过结构体表示每一个进程 task_structure; 由堆和进站给出
+2 PPID：          父进程进程号
+3 tty ：               与进程相关的内容
+4 STAT：          进程状态
+5 time：            处理时间  
+6 command： 发起的进程 
+
+ps -l
+
+[root@node1 ~]# ps -l
+F S UID PID PPID C PRI NI ADDR SZ WCHAN TTY TIME CMD
+4 S 0 12559 12557 0 75 0 - 1160 wait pts/0 00:00:00 bash
+4 R 0 20121 12559 0 77 0 - 1054 - pts/0 00:00:00 ps
+
+F ：表示这个进程的标志位（flag）, 4 表示用户为超级用户
+S ：表示这个进程的状态 (stat)
+C ：cpu 使用的的只有百分比
+PID /PPID： 很常见的进程和父进程
+NI ：nice 值 用于修改进程优先级
+ADDR： 核心功能，指出该进程在内核的那一部分，怎么运行
+SZ： 用掉的内存大小
+WCHAN： 当前进程是否在运行 - 表示正在运行
+TTY ：终端位置
+TIME ：用掉的CPU时间
+CMD： 所执行的命令
+
+特别说明：由于ps 能够支持的OS类型相当多，所以它的参数非常多，而且 是否加 “-” 也回有很大的差别（BSD中 一般不需要加-）
+
+具体该怎么操作呢？ 参考 man ps
+
+top
+
+格式： top [-d] | top [-bnp]
+
+参数：
+
+-d： 更新的秒数。 默认5秒
+
+-b： 以批处理的方式执行top
+
+ 在top执行过程中可以使用下列按键查看命令：
+
+?： 显示在top中可以输入的按键命令
+P：按CPU的使用资源排序显示
+M：按内存的使用资源排序显示
+T：按该进程的时间积累(TIME+)排序
+k： 给某个PID一个信号 
+r： 给某个PID重新确定一个值
