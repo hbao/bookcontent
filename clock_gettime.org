@@ -459,7 +459,7 @@ timer_gettime函数和getitimer类似，可以参考上面的描述。
 int timer_delete(timer_t timerid);
 有创建就有删除，timer_delete用来删除指定的timer，释放资源。
 
-[[http://www.bluezd.info/page/8]blog网址]]
+[[http://www.bluezd.info/page/8][blog网址]]
 
 * linux新的API signalfd、timerfd、eventfd使用说明
 [[http://blog.csdn.net/gdutliuyun827/article/details/8460417][linux新的API signalfd、timerfd、eventfd使用说明]]
