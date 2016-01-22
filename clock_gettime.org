@@ -469,3 +469,6 @@ int timer_delete(timer_t timerid);
 [[http://blog.csdn.net/walkingman321?viewmode=contents][linux分析]]
 
 [[http://www.ibm.com/developerworks/cn/linux/1308_liuming_linuxtime3/][浅析 Linux 中的时间编程和实现原理，第 3 部分: Linux 内核的工作]]
+
+
+[[http://armsword.com/document/][blog网址]]
