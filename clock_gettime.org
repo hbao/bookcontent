@@ -463,5 +463,9 @@ int timer_delete(timer_t timerid);
 
 * linux新的API signalfd、timerfd、eventfd使用说明
 [[http://blog.csdn.net/gdutliuyun827/article/details/8460417][linux新的API signalfd、timerfd、eventfd使用说明]]
+
 [[http://blog.csdn.net/walkingman321/article/details/6162055][Linux的timerfd分析]]
+
 [[http://blog.csdn.net/walkingman321?viewmode=contents][linux分析]]
+
+[[http://www.ibm.com/developerworks/cn/linux/1308_liuming_linuxtime3/][浅析 Linux 中的时间编程和实现原理，第 3 部分: Linux 内核的工作]]
