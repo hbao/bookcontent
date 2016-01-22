@@ -1,0 +1,467 @@
+* timerfd, eventfd, signalfd
+
+timerfd是Linux为用户程序提供的一个定时器接口。这个接口基于文件描述符，通过文件描述符的可读事件进行超时通知，所以能够被用于select/poll的应用场景。 timerfd是linux内核2.6.25版本中加入的借口。
+
+timerfd、eventfd、signalfd配合epoll使用，可以构造出一个零轮询的程序，但程序没有处理的事件时，程序是被阻塞的。这样的话在某些移动设备上程序更省电。
+
+clock_gettime函数可以获取系统时钟，精确到纳秒。需要在编译时指定库：-lrt。可以获取两种类型事件：
+
+CLOCK_REALTIME：相对时间，从1970.1.1到目前的时间。更改系统时间会更改获取的值。也就是，它以系统时间为坐标。
+
+CLOCK_MONOTONIC：与CLOCK_REALTIME相反，它是以绝对时间为准，获取的时间为系统重启到现在的时间，更改系统时间对齐没有影响。
+
+timerfd_create：
+
+生成一个定时器对象，返回与之关联的文件描述符。接收两个入参，一个是clockid，填写CLOCK_REALTIME或者CLOCK_MONOTONIC，参数意义同上。第二个可以传递控制标志：TFD_NONBLOCK（非阻塞），TFD_CLOEXEC（同O_CLOEXEC）
+
+注：timerfd的进度要比usleep要高。
+
+timerfd_settime：能够启动和停止定时器；可以设置第二个参数：flags，0表示是相对定时器，TFD_TIMER_ABSTIME表示是绝对定时器。
+
+第三个参数设置超时时间，如果为0则表示停止定时器。定时器设置超时方法：
+
+1、设置超时时间是需要调用 clock_gettime 获取当前时间，如果是绝对定时器，那么需要获取 CLOCK_REALTIME，在加上要超时的时间。如果是相对定时器，要获取 CLOCK_MONOTONIC时间。
+
+2、数据结构：  
+   struct timespec {
+
+               time_t tv_sec;                /* Seconds */ 
+               long   tv_nsec;               /* Nanoseconds */ 
+           }; 
+           struct itimerspec { 
+               struct timespec it_interval;  /* Interval for periodic timer */ 
+               struct timespec it_value;     /* Initial expiration */ 
+           };
+      it_value是首次超时时间，需要填写从 clock_gettime获取的时间，并加上要超时的时间。  it_interval是后续周期性超时时间，是多少时间就填写多少。
+
+     注意一个容易犯错的地方：tv_nsec加上去后一定要判断是否超出1000000000（如果超过要秒加一），否则会设置失败。
+
+     
+     it_interval不为0则表示是周期性定时器。
+
+     it_value和 it_interval都为0表示停止定时器。
+
+注： timerfd_create第一个参数和 clock_gettime的第一个参数都是 CLOCK_REALTIME或者 CLOCK_MONOTONIC， timerfd_settime的第二个参数为0（相对定时器）或者TFD_TIMER_ABSTIME，三者的关系：
+
+1、如果 timerfd_settime设置为 TFD_TIMER_ABSTIME（决定时间），则后面的时间必须用 clock_gettime来获取，获取时设置 CLOCK_REALTIME还是 CLOCK_MONOTONIC取决于 timerfd_create设置的值。
+
+2、如果 timerfd_settime设置为 0（相对定时器），则后面的时间必须用相对时间，就是：
+
+    new_value. it_value .tv_nsec = 500000000;
+
+    new_value. it_value .tv_sec = 3;
+
+    new_value. it_interval .tv_sec = 0;
+
+    new_value. it_interval .tv_nsec = 10000000;
+
+read函数可以读timerfd，读的内容为uint_64，表示超时次数。
+
+看一段代码例子： 
+ #include <sys/timerfd.h>
+#include <sys/time.h>
+#include <time.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>		  /* Definition of uint64_t */
+
+#define handle_error(msg) \
+    do { perror(msg); exit(EXIT_FAILURE); } while (0)
+
+void printTime()
+{  
+  struct timeval tv;  
+  gettimeofday(&tv, NULL);  
+  printf("printTime:  current time:%ld.%ld ", tv.tv_sec, tv.tv_usec);
+}
+
+int main(int argc, char *argv[])
+{
+  struct timespec now;
+  if (clock_gettime(CLOCK_REALTIME, &now) == -1)
+    handle_error("clock_gettime");
+
+  struct itimerspec new_value;
+  new_value.it_value.tv_sec = now.tv_sec + atoi(argv[1]);
+  new_value.it_value.tv_nsec = now.tv_nsec;
+  new_value.it_interval.tv_sec = atoi(argv[2]);
+  new_value.it_interval.tv_nsec = 0;
+
+  int fd = timerfd_create(CLOCK_REALTIME, 0);
+  if (fd == -1)
+    handle_error("timerfd_create");
+
+  if (timerfd_settime(fd, TFD_TIMER_ABSTIME, &new_value, NULL) == -1)
+    handle_error("timerfd_settime");
+
+  printTime();
+  printf("timer started\n");
+  
+  for (uint64_t tot_exp = 0; tot_exp < atoi(argv[3]);) 
+  {
+     uint64_t exp;
+    ssize_t s = read(fd, &exp, sizeof(uint64_t));
+    if (s != sizeof(uint64_t))
+      handle_error("read");
+
+    tot_exp += exp;
+    printTime();
+    printf("read: %llu; total=%llu\n",exp, tot_exp);
+  }
+
+  exit(EXIT_SUCCESS);
+}
+root@node1:/home/c_test/unix_test# ./timerfd 20 3 4
+printTime:  current time:1396594376.746760 timer started
+printTime:  current time:1396594396.747705 read: 1; total=1
+printTime:  current time:1396594399.747667 read: 1; total=2
+printTime:  current time:1396594402.747728 read: 1; total=3
+printTime:  current time:1396594405.746874 read: 1; total=4
+第一个参数为第一次定时器到期间隔，第二个参数为定时器的间隔，第三个参数为定时器多少次则退出。 
+timerfd简单的性能测试：
+
+申请1000个定时器，超时间定位1s，每秒超时一次，发现cpu占用率在3.0G的cpu上大概为1%，10000个定时器的话再7%左右，而且不会出现同时超时两个的情况，如果有printf到前台，则一般会出现定时器超时多次（3-5）才回调。 
+PS:linux内核新添加的API timerfd、signalfd、eventfd都有异曲同工之妙，都可以将本来复杂的处理转化思维变得简单。 
+
+
+
+
+* Linux下如何查看系统启动时间和运行时间
+Linux下如何查看系统启动时间和运行时间
+1.uptime命令
+输出:16:11:40 up 59 days, 4:21, 2 users, load average: 0.00, 0.01, 0.00
+
+2.查看/proc/uptime文件计算系统启动时间
+cat /proc/uptime
+输出: 5113396.94 575949.85
+第一数字即是系统已运行的时间5113396.94 秒，运用系统工具date即可算出系统启动时间
+
+代码: 全选
+date -d "$(awk -F. '{print $1}' /proc/uptime) second ago" +"%Y-%m-%d %H:%M:%S"
+
+输出: 2008-11-09 11:50:31
+
+3.查看/proc/uptime文件计算系统运行时间
+
+代码: 全选
+cat /proc/uptime| awk -F. '{run_days=$1 / 86400;run_hour=($1 % 86400)/3600;run_minute=($1 % 3600)/60;run_second=$1 % 60;printf("系统已运行：%d天%d时%d分%d秒",run_days,run_hour,run_minute,run_second)}'
+
+输出:系统已运行：59天4时13分9秒
+
+
+* command
+1： who 命令查看
+
+      who -b 查看最后一次系统启动的时间。
+
+      who -r 查看当前系统运行时间
+      
+2： last  reboot
+
+如下所示last reboot可以看到Linux系统历史启动的时间
+如果只需要查看最后一次Linux系统启动的时间
+[root@DB-Server ~]# last reboot | head -1
+
+3：TOP命令查看
+
+ 
+
+    如下截图所示，up后表示系统到目前运行了多久时间。反过来推算系统重启时间
+    
+
+4： w命令查看
+如下截图所示，up后表示系统到目前运行了多久时间。反过来推算系统重启时间
+
+* sysinfo结构
+1、前言
+
+　　时间对操作系统来说非常重要，从内核级到应用层，时间的表达方式及精度各部相同。linux内核里面用一个名为jiffes的常量来计算时间戳。应用层有time、getdaytime等函数。今天需要在应用程序获取系统的启动时间，百度了一下，通过sysinfo中的uptime可以计算出系统的启动时间。
+
+2、sysinfo结构
+
+　　sysinfo结构保持了系统启动后的信息，主要包括启动到现在的时间，可用内存空间、共享内存空间、进程的数目等。man sysinfo得到结果如下所示：
+
+复制代码
+复制代码
+ 1 struct sysinfo {
+ 2                long uptime;             /* Seconds since boot */
+ 3                unsigned long loads[3];  /* 1, 5, and 15 minute load averages */
+ 4                unsigned long totalram;  /* Total usable main memory size */
+ 5                unsigned long freeram;   /* Available memory size */
+ 6                unsigned long sharedram; /* Amount of shared memory */
+ 7                unsigned long bufferram; /* Memory used by buffers */
+ 8                unsigned long totalswap; /* Total swap space size */
+ 9                unsigned long freeswap;  /* swap space still available */
+10                unsigned short procs;    /* Number of current processes */
+11                char _f[22];             /* Pads structure to 64 bytes */
+12            };
+复制代码
+复制代码
+3、获取系统启动时间
+
+　　通过sysinfo获取系统启动到现在的秒数，用当前时间减去这个秒数即系统的启动时间。程序如下所示：
+
+复制代码
+复制代码
+ 1 #include <stdio.h>
+ 2 #include <sys/sysinfo.h>
+ 3 #include <time.h>
+ 4 #include <errno.h>
+ 5 
+ 6 static int print_system_boot_time()
+ 7 {
+ 8     struct sysinfo info;
+ 9     time_t cur_time = 0;
+10     time_t boot_time = 0;
+11     struct tm *ptm = NULL;
+12     if (sysinfo(&info)) {
+13     fprintf(stderr, "Failed to get sysinfo, errno:%u, reason:%s\n",
+14         errno, strerror(errno));
+15     return -1;
+16     }
+17     time(&cur_time);
+18     if (cur_time > info.uptime) {
+19     boot_time = cur_time - info.uptime;
+20     }
+21     else {
+22     boot_time = info.uptime - cur_time;
+23     }
+24     ptm = gmtime(&boot_time);
+25     printf("System boot time: %d-%-d-%d %d:%d:%d\n", ptm->tm_year + 1900,
+26         ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+27    return 0; 
+28 }
+29 
+30 int main()
+31 {
+32     if (print_system_boot_time() != 0) {
+33     return -1;
+34     }
+35     return 0;
+36 }
+
+
+* C語言：使用clock_gettime計算程式碼的時間需求
+
+2012 年 08 月 06 日 by starforcefield
+如果想要測試某段特定程式碼的時間消耗，可以考慮的策略大概是：
+
+取得現在時間t1，跑程式碼
+取得跑完程式碼的時間t2
+最後把t2 – t1，得到這段程式碼的時間消耗了
+一般來說，C語言的標準程式庫裡面提供的time或clock兩個函數就可以滿足大部分的計時需求了。但在某些場合下可能會需要更精確的計時函數，例如說，比較兩個跑超快函數的時間消耗差異，或者是比較兩個時間消耗差異不大的函數。如果真有這個需求，而且你使用GNU/Linux，那就必須請到clock_gettime函式了。
+
+
+說明
+
+clock_gettime函式的原型為：
+
+int clock_gettime(clockid_t clk_id, struct timespec *tp);
+應用在計時的時候，第一個參數clk_id可填入CLOCK_REALTIME，而struct timespec* tp則是本函式回傳的結果。struct timespec的宣告如下：
+
+struct timespec {
+        time_t   tv_sec;        /* seconds */
+        long     tv_nsec;       /* nanoseconds */
+};
+也就是說，使用這種時間函數的話，可能可以精確到奈秒等級。如果想要進一步確定可容許的精確度，則可以使用clock_getres，其原型如下：
+
+int clock_getres(clockid_t clk_id, struct timespec *res);
+res會記載這個機器的精確等級。
+
+使用需求
+
+#include <time.h>
+編譯時連結librt.so
+gcc或clang在編譯時加入-Wl,-lrt選項，或連結時加入-lrt選項
+其他
+作業系統必須提供這樣的功能，因為這組函式並不屬於標準C程式庫。對GNU/Linux來說，這個函數屬於glibc的一部分。MS Windows沒有這個函數。如果MS Windows的使用者需要類似的功能，請參考本文或搜尋Windows API QueryPerformanceCounter。
+範例
+
+1. 測試精確度
+
+#include <time.h>
+#include <stdio.h>
+
+int main()
+{
+  struct timespec tt;
+  clock_getres(CLOCK_REALTIME, &tt);
+  printf("resolution: %ld\n", tt.tv_nsec);
+  return 0;
+}
+2. 計時
+
+#include <time.h>
+#include <stdio.h>
+
+int abs(int a)
+{
+  return a > 0 ? a : -1 * a;
+}
+
+int main()
+{
+  struct timespec tt1, tt2;
+  int result;
+  clock_gettime(CLOCK_REALTIME, &tt1);
+  result = abs(-33);
+  clock_gettime(CLOCK_REALTIME, &tt2);
+  printf("abs() consumes %ld nanoseconds!\n(Result of abs: %d)\n", tt2.tv_nsec - tt1.tv_nsec, result);
+  return 0;
+}
+參考資料
+
+GNU/Linux man page
+在GNU/Linux下執行man clock_gettime以取得更多資訊
+
+
+* Linux时间子系统之（三）：用户空间接口函数
+
+作者：郭健 发布于：2014-12-24 15:48 分类：时间子系统
+一、前言
+从应用程序的角度看，内核需要提供的和时间相关的服务有三种：
+1、和系统时间相关的服务。例如，在向数据库写入一条记录的时候，需要记录操作时间（何年何月何日何时）。
+2、让进程睡眠一段时间
+3、和timer相关的服务。在一段指定的时间过去后，kernel要alert用户进程
+本文主要描述和时间子系统相关的用户空间接口函数知识。
+ 
+二、和系统时间相关的服务
+1、秒级别的时间函数：time和stime
+time和stime函数的定义如下：
+#include <time.h>
+time_t time(time_t *t);
+int stime(time_t *t);
+time函数返回了当前时间点到linux epoch的秒数（内核中timekeeper模块保存了这个值，timekeeper->xtime_sec）。stime是设定当前时间点到linux epoch的秒数。对于linux kernel，设定时间的进程必须拥有CAP_SYS_TIME的权利，否则会失败。
+linux kernel用系统调用sys_time和sys_stime来支持这两个函数。实际上，在引入更高精度的时间相关的系统调用之后（例如：sys_gettimeofday），上面这两个系统调用可以用新的系统调在用户空间实现time和stime函数。在kernel中，只有定义了__ARCH_WANT_SYS_TIME这个宏，系统才会提供上面这两个系统调用。当然，提供这样的系统调用多半是为了兼容旧的应用软件。
+配合上面的接口函数还有一系列将当前时间点到linux epoch的秒数转换成适合人类阅读的接口函数，例如asctime, ctime, gmtime, localtime, mktime, asctime_r, ctime_r, gmtime_r, localtime_r ，这些函数主要用来将time_t类型的时间转换成break-down time或者字符形式。
+2、微秒级别的时间函数：gettimeofday和settimeofday
+#include <sys/time.h>
+int gettimeofday(struct timeval *tv, struct timezone *tz);
+int settimeofday(const struct timeval *tv, const struct timezone *tz);
+这两个函数和上一小节秒数的函数类似，只不过时间精度可以达到微秒级别。gettimeofday函数可以获取从linux epoch到当前时间点的秒数以及微秒数（在内核态，这个时间值仍然是通过timekeeper模块获得的，具体接口是getnstimeofday64，该接口的时间精度是纳秒级别的，不过没有关系，除以1000就获得微秒级别的精度了），settimeofday则是设定从linux epoch到当前时间点的秒数以及微秒数。同样的，设定时间的进程必须拥有CAP_SYS_TIME的权利，否则会失败。tz参数是由于历史原因而存在，实际上内核并没有对timezone进行支持。
+显然，sys_gettimeofday和sys_settimeofday这两个系统调用是用来支持上面两个函数功能的，值得一提的是：这些系统调用在新的POSIX标准中 gettimeofday和settimeofday接口函数被标注为obsolescent，取而代之的是clock_gettime和clock_settime接口函数
+3、纳秒级别的时间函数：clock_gettime和clock_settime
+#include <time.h>
+int clock_getres(clockid_t clk_id, struct timespec *res);
+int clock_gettime(clockid_t clk_id, struct timespec *tp);
+int clock_settime(clockid_t clk_id, const struct timespec *tp);
+如果不是clk_id这个参数，clock_gettime和clock_settime基本上是不用解释的，其概念和gettimeofday和settimeofday接口函数是完全类似的，除了精度是纳秒。clock就是时钟的意思，它记录了时间的流逝。clock ID当然就是识别system clock（系统时钟）的ID了，定义如下：
+CLOCK_REALTIME 
+CLOCK_MONOTONIC 
+CLOCK_MONOTONIC_RAW 
+CLOCK_PROCESS_CPUTIME_ID 
+CLOCK_THREAD_CPUTIME_ID
+根据应用的需求，内核维护了几个不同系统时钟。大家最熟悉的当然就是CLOCK_REALTIME这个系统时钟，因为它表示了真实世界的墙上时钟（前面两节的接口函数没有指定CLOCK ID，实际上获取的就是CLOCK_REALTIME的时间值）。CLOCK_REALTIME这个系统时钟允许用户对其进行设定（当然要有CAP_SYS_TIME权限），这也就表示在用户空间可以对该系统时钟进行修改，产生不连续的时间间断点。除此之外，也可以通过NTP对该时钟进行调整（不会有间断点，NTP调整的是local oscillator和上游服务器频率误差而已）。
+仅仅从名字上就可以看出CLOCK_MONOTONIC的系统时钟应该是单调递增的，此外，该时钟也是真实世界的墙上时钟，只不过其基准点不一定是linux epoch（当然也可以是），一般会把系统启动的时间点设定为其基准点。随后该时钟会不断的递增。除了可以通过NTP对该时钟进行调整之外，其他任何程序不允许设定该时钟，这样也就保证了该时钟的单调性。
+CLOCK_MONOTONIC_RAW具备CLOCK_MONOTONIC的特性，除了NTP调整。也就是说，clock id是CLOCK_MONOTONIC_RAW的系统时钟是一个完全基于本地晶振的时钟。不能设定，也不能对对晶振频率进行调整。
+在调用clock_gettime和clock_settime接口函数时，如果传递clock id参数是CLOCK_REALTIME的话，那么这两个函数的行为和前两个小节描述的一致，除了是ns精度。读到这里，我详细广大人民群众不免要问：为何要有其他类型的系统时钟呢？MONOTONIC类型的时钟相对比较简单，如果你设定事件A之后5秒进行动作B，那么用MONOTONIC类型的时钟是一个比较好的选择，如果使用REALTIME的时钟，当用户在事件A和动作B之间插入时间设定的操作，那么你设定事件A之后5秒进行动作B将不能触发。此外，用户需要了解系统启动时间，这个需求需要使用MONOTONIC类型的时钟的时钟。需要指出的是MONOTONIC类型的时钟不是绝对时间的概念，多半是计算两个采样点之间的时间，并且保证采样点之间时间的单调性。MONOTONIC_RAW是一个底层工具，一般而言程序员不会操作它，使用MONOTONIC类型的时钟就够用了，当然，一些高级的应用场合，例如你想使用另外的方法（不是NTP）来调整时间，那么就可以使用MONOTONIC_RAW了。
+有些应用场景使用real time的时钟（墙上时钟）是不合适的，例如当我们进行系统中各个应用程序的性能分析和统计的时候。正因为如此，kernel提供了基于进程或者线程的系统时钟，也就是CLOCK_PROCESS_CPUTIME_ID和CLOCK_THREAD_CPUTIME_ID了。当我们打算使用基于进程或者线程的系统时钟的时候，需要首先获取clock id：
+#include <time.h>
+int clock_getcpuclockid(pid_t pid, clockid_t *clock_id);
+如果是线程的话，需要调用pthread_getcpuclockid接口函数：
+#include <pthread.h> 
+#include <time.h>
+int pthread_getcpuclockid(pthread_t thread, clockid_t *clock_id);
+虽然这组函数接口的精度可以达到ns级别，但是实际的系统可以达到什么样的精度是实现相关的，因此，clock_getres用来获取系统时钟的精度。
+4、系统时钟的调整
+设定系统时间是一个比较粗暴的做法，一旦修改了系统时间，系统中的很多依赖绝对时间的进程会有各种奇奇怪怪的行为。正因为如此，系统提供了时间同步的接口函数，可以让外部的精准的计时服务器来不断的修正系统时钟。
+（1）adjtime接口函数
+int adjtime(const struct timeval *delta, struct timeval *olddelta);
+该函数可以根据delta参数缓慢的修正系统时钟（CLOCK_REALTIME那个）。olddelta返回上一次调整中尚未完整的delta。
+（2）adjtimex
+#include <sys/timex.h>
+int adjtimex(struct timex *buf);
+RFC 1305定义了更复杂，更强大的时间调整算法，因此linux kernel通过sys_adjtimex支持这个算法，其用户空间的接口函数就是adjtimex。由于这个算法过去强大，这里就不再赘述，等有时间、有兴趣之后再填补这里的空白吧。
+Linux内核提供了sys_adjtimex系统调用来支持上面两个接口函数。此外，还提供了sys_clock_adjtime的系统调用来支持POSIX clock tunning。
+ 
+三、进程睡眠
+1、秒级别的sleep函数：sleep
+#include <unistd.h>
+unsigned int sleep(unsigned int seconds);
+调用该函数会导致当前进程sleep，seconds之后（基于CLOCK_REALTIME）会返回继续执行程序。该函数的返回值说明了进程没有进入睡眠的时间。例如如果我们想要睡眠8秒，但是由于siganl中断了睡眠，只是sleep了5秒，那么返回值就是3，表示有3秒还没有睡。
+2、微秒级别的sleep函数：usleep
+#include <unistd.h>
+int usleep(useconds_t usec);
+概念上和sleep一样，不过返回值的定义不同。usleep返回0表示执行成功，返回-1说明执行失败，错误码在errno中获取。
+3、纳秒级别的sleep函数：nanosleep
+#include <time.h>
+int nanosleep(const struct timespec *req, struct timespec *rem);
+usleep函数已经是过去式，不建议使用，取而代之的是nanosleep函数。req中设定你要sleep的秒以及纳秒值，然后调用该函数让当前进程sleep。返回0表示执行成功，返回-1说明执行失败，错误码在errno中获取。EINTR表示该函数被signal打断。rem参数是remaining time的意思，也就是说还有多少时间没有睡完。
+linux kernel并没有提供sleep和usleep对应的系统调用，sleep和usleep的实现位于c lib。在有些系统中，这些实现是依赖信号的，也有的系统使用timer来实现的，对于GNU系统，sleep和usleep和nanosleep函数一样，都是通过kernel的sys_nanosleep的系统调用实现的（底层是基于hrtimer）。
+4、更高级的sleep函数：clock_nanosleep
+#include <time.h>
+int clock_nanosleep(clockid_t clock_id, int flags, 
+                    const struct timespec *request, 
+                    struct timespec *remain);
+clock_nanosleep接口函数需要传递更多的参数，当然也就是意味着它功能更强大。clock_id说明该接口函数不仅能基于real time clock睡眠，还可以基于其他的系统时钟睡眠。flag等于0或者1，分别指明request参数设定的时间值是相对时间还是绝对时间。
+ 
+四、和timer相关的服务
+1、alarm函数
+#include <unistd.h>
+unsigned int alarm(unsigned int seconds);
+alarm函数是使用timer最简单的接口。在指定秒数（基于CLOCK_REALTIME）的时间过去后，向该进程发送SIGALRM信号。当然，调用该接口的程序需要设定signal handler。
+2、Interval timer函数
+#include <sys/time.h>
+int getitimer(int which, struct itimerval *curr_value); 
+int setitimer(int which, const struct itimerval *new_value, 
+              struct itimerval *old_value);
+Interval timer函数的行为和alarm函数类似，不过功能更强大。每个进程支持3种timer，不同的timer定义了如何计时以及发送什么样的信号给进程，which参数指明使用哪个timer：
+（1）ITIMER_REAL。基于CLOCK_REALTIME计时，超时后发送SIGALRM信号，和alarm函数一样。
+（2）ITIMER_VIRTUAL。只有当该进程的用户空间代码执行的时候才计时，超时后发送SIGVTALRM信号。
+（3）ITIMER_PROF。只有该进程执行的时候才计时，不论是执行用户空间代码还是陷入内核执行（例如系统调用），超时后发送SIGPROF信号。
+struct itimerval定义如下：
+struct itimerval { 
+    struct timeval it_interval; /* next value */ 
+    struct timeval it_value;    /* current value */ 
+};
+两个成员分别指明了本次和下次（超期后如何设定）的时间值。通过这样的定义，interval timer可以实现one shot类型的timer和periodic的timer。例如current value设定为5秒，next value设定为3秒，设定这样的timer后，it_value值会不断递减，直到5秒后触发，而随后it_value的值会被重新加载（使用it_interval的值），也就是等于3秒，之后会按照3为周期不断的触发。
+old_value返回上次setitimer函数的设定值。getitimer函数获取当前的Interval timer的状态，其中的it_value成员可以得到当前时刻到下一次触发点的世时间信息，it_interval成员保持不变，除非你重新调用setitimer重新设定。
+虽然interval timer函数也是POSIX标准的一部分，不过在新的POSIX标准中，interval timer接口函数被标注为obsolescent，取而代之的是POSIX timer接口函数。
+3、更高级，更灵活的timer函数
+上一节介绍的Interval timer函数还是有功能不足之处：例如一个进程只能有ITIMER_REAL、ITIMER_VIRTUAL和ITIMER_PROF三个timer，如果连续设定其中一种timer（例如ITIMER_REAL），这会导致第一个设定被第二次设定覆盖。此外，超时处理永远是用信号的方式，而且发送的signal不能修改。当mask信号处理的时候，虽然timer多次超期，但是signal handler只会调用一次，无法获取更详细的信息。最后一点，Interval timer函数精度是微秒级别，精度有进一步提升的空间。正因为传统的Interval timer函数的不足之处，POSIX标准定义了更高级，更灵活的timer函数，我们称之POSIX （interval）Timer。
+（1）创建timer
+#include <signal.h>
+#include <time.h>
+int timer_create(clockid_t clockid, struct sigevent *sevp,   timer_t *timerid);
+在这个接口函数中，clock id相信大家都很熟悉了， timerid一看就是返回的timer ID的句柄，就像open函数返回的文件描述符一样。因此，要理解这个接口函数重点是了解struct sigevent这个数据结构：
+union sigval {          /* Data passed with notification */ 
+    int     sival_int;         /* Integer value */ 
+    void   *sival_ptr;         /* Pointer value */ 
+};
+typedef struct sigevent { 
+    sigval_t sigev_value; 
+    int sigev_signo; 
+    int sigev_notify; 
+    union { 
+        int _pad[SIGEV_PAD_SIZE]; 
+         int _tid;
+        struct { 
+            void (*_function)(sigval_t); 
+            void *_attribute;    /* really pthread_attr_t */ 
+        } _sigev_thread; 
+    } _sigev_un; 
+} sigevent_t;
+sigev_notify定义了当timer超期后如何通知该进程，可以设定：
+（a）SIGEV_NONE。不需要异步通知，程序自己调用timer_gettime来轮询timer的当前状态
+（b）SIGEV_SIGNAL。使用sinal这样的异步通知方式。发送的信号由sigev_signo定义。如果发送的是realtime signal，该信号的附加数据由sigev_value定义。
+（c）SIGEV_THREAD。创建一个线程执行timer超期callback函数，_attribute定义了该线程的属性。
+（d）SIGEV_THREAD_ID。行为和SIGEV_SIGNAL类似，不过发送的信号被送达进程内的一个指定的thread，这个thread由_tid标识。
+（2）设定timer
+#include <time.h>
+int timer_settime(timer_t timerid, int flags,   const struct itimerspec *new_value, 
+                  struct itimerspec * old_value); 
+int timer_gettime(timer_t timerid, struct itimerspec *curr_value);
+timerid就是上一节中通过timer_create创建的timer。new_value和old_value这两个参数类似setitimer函数，这里就不再细述了。flag等于0或者1，分别指明new_value参数设定的时间值是相对时间还是绝对时间。如果new_value.it_value是一个非0值，那么调用timer_settime可以启动该timer。如果new_value.it_value是一个0值，那么调用timer_settime可以stop该timer。
+timer_gettime函数和getitimer类似，可以参考上面的描述。
+（3）删除timer
+#include <time.h>
+int timer_delete(timer_t timerid);
+有创建就有删除，timer_delete用来删除指定的timer，释放资源。
+
+[[http://www.bluezd.info/page/8]blog网址]]
+
+* linux新的API signalfd、timerfd、eventfd使用说明
+[[http://blog.csdn.net/gdutliuyun827/article/details/8460417][linux新的API signalfd、timerfd、eventfd使用说明]]
+[[http://blog.csdn.net/walkingman321/article/details/6162055][Linux的timerfd分析]]
+[[http://blog.csdn.net/walkingman321?viewmode=contents][linux分析]]
