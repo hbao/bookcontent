@@ -472,3 +472,5 @@ int timer_delete(timer_t timerid);
 
 
 [[http://armsword.com/document/][blog网址]]
+
+[[http://m.blog.csdn.net/article/details?id=8216090][十年磨一剑]]
