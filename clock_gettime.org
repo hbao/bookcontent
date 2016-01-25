@@ -478,3 +478,5 @@ int timer_delete(timer_t timerid);
 [[http://groups.csail.mit.edu/mac/classes/6.001/abelson-sussman-lectures/][计算机程序设计与解释视频]]
 
 [[https://www.ibm.com/developerworks/cn/linux/theme/mtj/][ibm M.Tim Jones专栏Linux]]
+
+[[http://m.blog.csdn.net/article/details?id=9335783][计算机视觉]]
